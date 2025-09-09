@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Quote / Estimate Generator</title>
+  <style>
+    body {
+      margin: 0;
+      font-family: Arial, sans-serif;
+      background: #f5f5f5;
+      color: #333;
+    }
+    .container {
+      max-width: 1200px;
+      margin: 20px auto;
+      padding: 20px;
+      background: #fff;
+      border-radius: 8px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+    h1, h2 {
+      margin-top: 0;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+    }
+    @media(max-width: 900px){
+      .grid { grid-template-columns: 1fr; }
+    }
+    input, textarea, select {
+      width: 100%;
+      padding: 8px;
+      margin-bottom: 10px;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+    }
+    textarea { resize: vertical; }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 10px;
+    }
+    th, td {
+      border: 1px solid #ddd;
+      padding: 8px;
+    }
+    th { background: #f0f0f0; }
+    td.right { text-align: right; }
+    .btn {
+      padding: 8px 16px;
+      margin: 4px 0;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      font-weight: bold;
+    }
+    .btn-primary { background: #007bff; color: #fff; }
+    .btn-secondary { background: #6c757d; color: #fff; }
+    .btn-danger { background: #dc3545; color: #fff; }
+    .actions { margin-top: 10px; }
+    .quote-preview {
+      background: #fff;
+      padding: 20px;
+      border: 1px solid #ddd;
+      border-radius: 8px;
+    }
+    .totals { max-width: 300px; margin-left: auto; }
+    .totals td { border: none; }
+    .totals .grand { font-weight: bold; font-size: 16px; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Quote / Estimate Generator</h1>
+    <div class="actions">
+      <button class="btn btn-primary" id="download-pdf">Download PDF</button>
+      <button class="btn btn-secondary" id="download-png">Download PNG</button>
+    </div>
+
+    <div class="grid">
+      <!-- Left form -->
+      <div>
+        <h2>Business Info</h2>
+        <input id="bizName" placeholder="Business Name">
+        <input id="bizEmail" placeholder="Business Email">
+        <input id="bizPhone" placeholder="Business Phone">
+        <input id="bizAddress" placeholder="Business Address">
+
+        <h2>Client Info</h2>
+        <input id="clientName" placeholder="Client Name">
+        <input id="clientEmail" placeholder="Client Email">
+        <input id="clientPhone" placeholder="Client Phone">
+        <input id="clientAddress" placeholder="Client Address">
+
+        <h2>Estimate Details</h2>
+        <input id="quoteNumber" placeholder="Quote #">
+        <input id="issueDate" type="date">
+        <input id="validUntil" type="date">
+        <input id="projectTitle" placeholder="Project Title">
+
+        <h2>Line Items</h2>
+        <table id="itemsTable">
+          <thead>
+            <tr>
+              <th>Description</th>
+              <th>Qty</th>
+              <th>Rate</th>
+              <th>Total</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="itemsBody"></tbody>
+        </table>
+        <button class="btn btn-primary" id="addItem">+ Add Item</button>
+
+        <h2>Notes / Terms</h2>
+        <textarea id="notes" placeholder="Enter terms..."></textarea>
+      </div>
+
+      <!-- Right preview -->
+      <div>
+        <h2>Preview</h2>
+        <div id="preview" class="quote-preview">
+          <h2 id="pBizName">Business Name</h2>
+          <p id="pBizContact"></p>
+          <hr>
+          <h3>Bill To:</h3>
+          <p id="pClient"></p>
+          <hr>
+          <h3>Project:</h3>
+          <p id="pProjectTitle"></p>
+          <p id="pQuoteNumber"></p>
+          <p id="pDates"></p>
+
+          <table>
+            <thead>
+              <tr><th>Description</th><th>Qty</th><th>Rate</th><th>Total</th></tr>
+            </thead>
+            <tbody id="pItems"></tbody>
+          </table>
+
+          <table class="totals">
+            <tbody>
+              <tr><td>Subtotal:</td><td class="right" id="pSubtotal">$0.00</td></tr>
+              <tr class="grand"><td>Total:</td><td class="right" id="pTotal">$0.00</td></tr>
+            </tbody>
+          </table>
+
+          <h3>Notes</h3>
+          <p id="pNotes"></p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script>
+    const $ = s => document.querySelector(s);
+
+    function fmt(n){ return "$" + Number(n).toFixed(2); }
+
+    function render(){
+      $('#pBizName').textContent = $('#bizName').value;
+      $('#pBizContact').textContent = [$('#bizEmail').value, $('#bizPhone').value, $('#bizAddress').value].filter(Boolean).join(' | ');
+      $('#pClient').textContent = [$('#clientName').value, $('#clientEmail').value, $('#clientPhone').value, $('#clientAddress').value].filter(Boolean).join(' | ');
+      $('#pProjectTitle').textContent = $('#projectTitle').value;
+      $('#pQuoteNumber').textContent = 'Quote #: ' + $('#quoteNumber').value;
+      $('#pDates').textContent = 'Issued: ' + $('#issueDate').value + ' | Valid until: ' + $('#validUntil').value;
+      $('#pNotes').textContent = $('#notes').value;
+
+      const body = $('#pItems');
+      body.innerHTML = '';
+      let subtotal = 0;
+      document.querySelectorAll('#itemsBody tr').forEach(tr => {
+        const desc = tr.querySelector('.i-desc').value;
+        const qty = parseFloat(tr.querySelector('.i-qty').value)||0;
+        const rate = parseFloat(tr.querySelector('.i-rate').value)||0;
+        const total = qty*rate;
+        subtotal += total;
+        const row = document.createElement('tr');
+        row.innerHTML = `<td>${desc}</td><td>${qty}</td><td>${fmt(rate)}</td><td>${fmt(total)}</td>`;
+        body.appendChild(row);
+        tr.querySelector('.i-total').textContent = fmt(total);
+      });
+      $('#pSubtotal').textContent = fmt(subtotal);
+      $('#pTotal').textContent = fmt(subtotal);
+    }
+
+    function addItem(desc='', qty=1, rate=0){
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td><input class="i-desc" value="${desc}"></td>
+        <td><input type="number" class="i-qty" value="${qty}" style="width:60px"></td>
+        <td><input type="number" class="i-rate" value="${rate}" style="width:80px"></td>
+        <td class="i-total right">$0.00</td>
+        <td><button class="btn btn-danger">X</button></td>
+      `;
+      tr.querySelectorAll('input').forEach(inp=>inp.addEventListener('input',render));
+      tr.querySelector('button').addEventListener('click',()=>{tr.remove();render();});
+      $('#itemsBody').appendChild(tr);
+      render();
+    }
+
+    async function downloadPNG(){
+      const el = document.getElementById('preview');
+      const canvas = await html2canvas(el, { scale: 2 });
+      const dataURL = canvas.toDataURL('image/png');
+      const link = document.createElement('a');
+      link.href = dataURL;
+      link.download = 'Quote.png';
+      link.click();
+    }
+
+    async function downloadPDF(){
+      const { jsPDF } = window.jspdf;
+      const el = document.getElementById('preview');
+      const canvas = await html2canvas(el, { scale: 2 });
+      const imgData = canvas.toDataURL('image/png');
+      const pdf = new jsPDF('p', 'pt', 'a4');
+      const pageWidth = pdf.internal.pageSize.getWidth();
+      const imgWidth = pageWidth - 40;
+      const imgHeight = canvas.height * imgWidth / canvas.width;
+      pdf.addImage(imgData, 'PNG', 20, 20, imgWidth, imgHeight);
+      pdf.save('Quote.pdf');
+    }
+
+    document.querySelectorAll('input, textarea').forEach(el=>el.addEventListener('input',render));
+    $('#addItem').addEventListener('click',()=>addItem());
+    $('#download-pdf').addEventListener('click',downloadPDF);
+    $('#download-png').addEventListener('click',downloadPNG);
+
+    addItem('Service',1,100);
+  </script>
+</body>
+</html>
